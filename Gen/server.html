@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OrbitDesk AI — Online Only Edition</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Manrope:wght@400;500;600&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --primary: #6366f1;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #22c55e;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Manrope', sans-serif; }
+    body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; position: relative; }
+    
+    /* Offline Overlay Screen */
+    #offline-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(2, 6, 23, 0.95);
+      backdrop-filter: blur(8px);
+      z-index: 9999;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 2rem;
+    }
+    #offline-overlay.active { display: flex; }
+    .offline-card {
+      background: var(--card);
+      border: 1px solid var(--danger);
+      padding: 2.5rem;
+      border-radius: 16px;
+      max-width: 420px;
+      box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);
+    }
+    .offline-icon { font-size: 3rem; margin-bottom: 1rem; }
+    .offline-title { font-family: 'Sora', sans-serif; font-size: 1.5rem; color: #fff; margin-bottom: 0.5rem; }
+    .offline-desc { color: var(--muted); font-size: 0.95rem; line-height: 1.5; margin-bottom: 1.5rem; }
+
+    header { background: #020617; border-bottom: 1px solid var(--border); padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
+    .logo { font-family: 'Sora', sans-serif; font-size: 1.25rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 0.5rem; }
+    .badge { background: #1e1b4b; border: 1px solid var(--primary); color: #818cf8; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; padding: 0.25rem 0.6rem; border-radius: 999px; }
+    .badge.active { background: #064e3b; border-color: var(--accent); color: #4ade80; }
+    .api-key-bar { display: flex; gap: 0.5rem; align-items: center; }
+    nav { display: flex; gap: 0.5rem; background: var(--card); padding: 0.25rem; border-radius: 8px; border: 1px solid var(--border); }
+    nav button { background: none; border: none; color: var(--muted); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 500; font-size: 0.875rem; }
+    nav button.active { background: var(--primary); color: #fff; }
+    main { flex: 1; max-width: 1000px; width: 100%; margin: 2rem auto; padding: 0 1rem; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    
+    .chat-box { background: var(--card); border: 1px solid var(--border); border-radius: 12px; height: 480px; display: flex; flex-direction: column; overflow: hidden; }
+    .chat-messages { flex: 1; padding: 1rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.75rem; }
+    .msg { max-width: 80%; padding: 0.75rem 1rem; border-radius: 10px; font-size: 0.9rem; line-height: 1.5; }
+    .msg.user { background: var(--primary); color: #fff; align-self: flex-end; }
+    .msg.agent { background: #0f172a; border: 1px solid var(--border); color: var(--text); align-self: flex-start; }
+    .chat-input-area { padding: 1rem; border-top: 1px solid var(--border); display: flex; gap: 0.5rem; background: #0f172a; }
+    input, select { background: #020617; border: 1px solid var(--border); color: #fff; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.85rem; outline: none; }
+    input:focus { border-color: var(--primary); }
+    .chat-input-area input { flex: 1; }
+    .btn { background: var(--primary); color: #fff; border: none; padding: 0.6rem 1.2rem; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
+    .btn:hover { opacity: 0.9; }
+
+    .card-panel { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; }
+    .timeline { margin-top: 1.5rem; border-left: 2px solid var(--primary); padding-left: 1rem; }
+    .timeline-item { margin-bottom: 1rem; position: relative; }
+    .timeline-item::before { content: ''; width: 10px; height: 10px; background: var(--primary); border-radius: 50%; position: absolute; left: -21px; top: 4px; }
+    .kb-list { display: grid; gap: 1rem; margin-top: 1rem; }
+    .kb-item { background: #0f172a; border: 1px solid var(--border); padding: 1rem; border-radius: 8px; }
+  </style>
+</head>
+<body>
+
+  <!-- Fullscreen Offline Lock Modal -->
+  <div id="offline-overlay">
+    <div class="offline-card">
+      <div class="offline-icon">📡❌</div>
+      <h2 class="offline-title">Internet Disconnected</h2>
+      <p class="offline-desc">OrbitDesk AI requires an active internet connection to run. Please check your network connection to resume access.</p>
+      <button class="btn" onclick="checkConnection()">Retry Connection</button>
+    </div>
+  </div>
+
+  <header>
+    <div class="logo">⚡ OrbitDesk AI</div>
+    <div class="api-key-bar">
+      <input type="password" id="api-key-input" placeholder="Paste Gemini API Key (Optional)">
+      <button class="btn" onclick="saveApiKey()">Connect AI</button>
+      <span class="badge" id="status-pill">Demo Mode</span>
+    </div>
+  </header>
+
+  <main>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+      <nav>
+        <button class="nav-btn active" onclick="switchTab('chat', this)">Live Chat</button>
+        <button class="nav-btn" onclick="switchTab('track', this)">Track Order</button>
+        <button class="nav-btn" onclick="switchTab('tickets', this)">Tickets</button>
+        <button class="nav-btn" onclick="switchTab('kb', this)">Knowledge Base</button>
+      </nav>
+      <select id="mode-select">
+        <option value="general">General Support</option>
+        <option value="technical">Technical Mode</option>
+      </select>
+    </div>
+
+    <!-- Live Chat -->
+    <section id="chat" class="tab-content active">
+      <div class="chat-box">
+        <div class="chat-messages" id="chat-messages">
+          <div class="msg agent">Hello! OrbitDesk AI is active online. You can connect a Gemini API key above or ask a question directly.</div>
+        </div>
+        <form class="chat-input-area" onsubmit="handleSend(event)">
+          <input type="text" id="chat-input" placeholder="Type your message..." required autocomplete="off">
+          <button type="submit" class="btn">Send</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Track Order -->
+    <section id="track" class="tab-content">
+      <div class="card-panel">
+        <h2>Order Tracking Lookup</h2>
+        <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+          <input type="text" id="order-id-input" placeholder="Enter Order ID (e.g., ORD-1001)">
+          <button class="btn" onclick="trackOrder()">Track</button>
+        </div>
+        <div id="tracking-result"></div>
+      </div>
+    </section>
+
+    <!-- Support Tickets -->
+    <section id="tickets" class="tab-content">
+      <div class="card-panel">
+        <h2>Create Support Ticket</h2>
+        <form style="display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem;" onsubmit="createTicket(event)">
+          <input type="text" placeholder="Your Name" required>
+          <input type="email" placeholder="Email Address" required>
+          <textarea rows="4" style="background:#020617; border:1px solid var(--border); color:#fff; padding:0.75rem; border-radius:8px;" placeholder="Describe your issue..." required></textarea>
+          <button type="submit" class="btn">Submit Ticket</button>
+        </form>
+        <div id="ticket-result" style="margin-top: 1rem;"></div>
+      </div>
+    </section>
+
+    <!-- Knowledge Base -->
+    <section id="kb" class="tab-content">
+      <div class="card-panel">
+        <h2>Self-Serve Knowledge Base</h2>
+        <input type="text" id="kb-search" placeholder="Search articles..." style="width: 100%; margin-top: 1rem;" oninput="filterKB()">
+        <div class="kb-list" id="kb-list">
+          <div class="kb-item"><strong>Reset Password:</strong> Go to settings and click 'Security'.</div>
+          <div class="kb-item"><strong>Refund Policy:</strong> Requests must be made within 30 days of purchase.</div>
+          <div class="kb-item"><strong>API Access:</strong> Generate tokens in the developer dashboard.</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // --- REAL-TIME INTERNET DETECTION ---
+    function checkConnection() {
+      const overlay = document.getElementById('offline-overlay');
+      if (!navigator.onLine) {
+        overlay.classList.add('active');
+      } else {
+        overlay.classList.remove('active');
+      }
+    }
+
+    window.addEventListener('online', checkConnection);
+    window.addEventListener('offline', checkConnection);
+    document.addEventListener('DOMContentLoaded', checkConnection);
+
+    // --- APPLICATION LOGIC ---
+    let apiKey = localStorage.getItem('gemini_api_key') || '';
+
+    if (apiKey) {
+      document.getElementById('api-key-input').value = apiKey;
+      updateStatus(true);
+    }
+
+    function saveApiKey() {
+      if (!navigator.onLine) return checkConnection();
+      const val = document.getElementById('api-key-input').value.trim();
+      apiKey = val;
+      localStorage.setItem('gemini_api_key', val);
+      updateStatus(Boolean(val));
+    }
+
+    function updateStatus(isConnected) {
+      const pill = document.getElementById('status-pill');
+      if (isConnected) {
+        pill.textContent = 'AI Connected';
+        pill.classList.add('active');
+      } else {
+        pill.textContent = 'Demo Mode';
+        pill.classList.remove('active');
+      }
+    }
+
+    function switchTab(tabId, el) {
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+      el.classList.add('active');
+    }
+
+    async function handleSend(e) {
+      e.preventDefault();
+      if (!navigator.onLine) {
+        checkConnection();
+        return;
+      }
+
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const chatMsgs = document.getElementById('chat-messages');
+      chatMsgs.innerHTML += `<div class="msg user">${escapeHtml(text)}</div>`;
+      input.value = '';
+      chatMsgs.scrollTop = chatMsgs.scrollHeight;
+
+      const mode = document.getElementById('mode-select').value;
+
+      if (apiKey) {
+        try {
+          const res = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text }] }],
+                systemInstruction: {
+                  parts: [{ text: "You are OrbitDesk AI. Prepend your response with an intent tag: [📦 Order Status], [💳 Billing], [🛠️ Technical], [📚 Knowledge Base], or [🤝 Human Handoff]." }]
+                }
+              })
+            }
+          );
+          const data = await res.json();
+          const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response received from AI.";
+          chatMsgs.innerHTML += `<div class="msg agent">${escapeHtml(reply)}</div>`;
+        } catch (err) {
+          chatMsgs.innerHTML += `<div class="msg agent" style="color:#ef4444;">Error connecting to API. Verify key and network connection.</div>`;
+        }
+      } else {
+        let intent = "📦 Order Status";
+        const lower = text.toLowerCase();
+        if (lower.includes("human") || lower.includes("agent")) intent = "🤝 Human Handoff";
+        else if (lower.includes("bill") || lower.includes("pay")) intent = "💳 Billing";
+        else if (lower.includes("bug") || mode === "technical") intent = "🛠️ Technical";
+
+        setTimeout(() => {
+          chatMsgs.innerHTML += `<div class="msg agent">[${intent}] (Demo Mode) Received request: "${escapeHtml(text)}". Add a Gemini key to chat with live AI.</div>`;
+          chatMsgs.scrollTop = chatMsgs.scrollHeight;
+        }, 400);
+      }
+      chatMsgs.scrollTop = chatMsgs.scrollHeight;
+    }
+
+    function trackOrder() {
+      if (!navigator.onLine) return checkConnection();
+      const id = document.getElementById('order-id-input').value.trim();
+      const target = document.getElementById('tracking-result');
+      if (!id) { target.innerHTML = "<p style='margin-top:1rem;'>Please enter an Order ID.</p>"; return; }
+      
+      target.innerHTML = `
+        <div class="timeline">
+          <div class="timeline-item"><strong>Order Placed</strong> — Confirmed</div>
+          <div class="timeline-item"><strong>Processing</strong> — Packed at fulfillment center</div>
+          <div class="timeline-item"><strong>In Transit</strong> — Estimated arrival in 2 business days</div>
+        </div>`;
+    }
+
+    function createTicket(e) {
+      e.preventDefault();
+      if (!navigator.onLine) return checkConnection();
+      const tId = 'TICK-' + Math.floor(1000 + Math.random() * 9000);
+      document.getElementById('ticket-result').innerHTML = `<p style="color:var(--accent);">Ticket created successfully! Ref: <strong>${tId}</strong>.</p>`;
+      e.target.reset();
+    }
+
+    function filterKB() {
+      const query = document.getElementById('kb-search').value.toLowerCase();
+      document.querySelectorAll('.kb-item').forEach(item => {
+        item.style.display = item.textContent.toLowerCase().includes(query) ? 'block' : 'none';
+      });
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, match => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[match]);
+    }
+  </script>
+</body>
+</html>
